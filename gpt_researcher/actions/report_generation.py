@@ -17,6 +17,7 @@ async def write_report_introduction(
     websocket=None,
     cost_callback: callable = None,
     prompt_family: type[PromptFamily] | PromptFamily = PromptFamily,
+    custom_instructions: str = "",
     **kwargs
 ) -> str:
     """
@@ -30,20 +31,25 @@ async def write_report_introduction(
         websocket: WebSocket connection for streaming output.
         cost_callback (callable, optional): Callback for calculating LLM costs.
         prompt_family: Family of prompts
+        custom_instructions (str): User writing instructions for report style/structure.
 
     Returns:
         str: The generated introduction.
     """
     try:
+        intro_prompt = prompt_family.generate_report_introduction(
+            question=query,
+            research_summary=context,
+            language=config.language
+        )
+        if custom_instructions:
+            intro_prompt += f"\n\nAdditional writing instructions:\n{custom_instructions}"
+
         introduction = await create_chat_completion(
             model=config.smart_llm_model,
             messages=[
                 {"role": "system", "content": f"{agent_role_prompt}"},
-                {"role": "user", "content": prompt_family.generate_report_introduction(
-                    question=query,
-                    research_summary=context,
-                    language=config.language
-                )},
+                {"role": "user", "content": intro_prompt},
             ],
             temperature=0.25,
             llm_provider=config.smart_llm_provider,
@@ -68,6 +74,7 @@ async def write_conclusion(
     websocket=None,
     cost_callback: callable = None,
     prompt_family: type[PromptFamily] | PromptFamily = PromptFamily,
+    custom_instructions: str = "",
     **kwargs
 ) -> str:
     """
@@ -81,21 +88,22 @@ async def write_conclusion(
         websocket: WebSocket connection for streaming output.
         cost_callback (callable, optional): Callback for calculating LLM costs.
         prompt_family: Family of prompts
+        custom_instructions (str): User writing instructions for report style/structure.
 
     Returns:
         str: The generated conclusion.
     """
     try:
+        conclusion_prompt = prompt_family.generate_report_conclusion(
+            query=query, report_content=context, language=config.language)
+        if custom_instructions:
+            conclusion_prompt += f"\n\nAdditional writing instructions:\n{custom_instructions}"
+
         conclusion = await create_chat_completion(
             model=config.smart_llm_model,
             messages=[
                 {"role": "system", "content": f"{agent_role_prompt}"},
-                {
-                    "role": "user",
-                    "content": prompt_family.generate_report_conclusion(query=query,
-                                                                        report_content=context,
-                                                                        language=config.language),
-                },
+                {"role": "user", "content": conclusion_prompt},
             ],
             temperature=0.25,
             llm_provider=config.smart_llm_provider,
@@ -223,6 +231,7 @@ async def generate_report(
     headers=None,
     prompt_family: type[PromptFamily] | PromptFamily = PromptFamily,
     available_images: list = None,
+    custom_instructions: str = "",
     **kwargs
 ):
     """
@@ -241,6 +250,7 @@ async def generate_report(
         cost_callback:
         prompt_family: Family of prompts
         available_images: Pre-generated images to embed in the report
+        custom_instructions: User writing instructions for report style/structure.
 
     Returns:
         report:
@@ -256,7 +266,7 @@ async def generate_report(
         content = f"{custom_prompt}\n\nContext: {context}"
     else:
         content = f"{generate_prompt(query, context, report_source, report_format=cfg.report_format, tone=tone, total_words=cfg.total_words, language=cfg.language)}"
-    
+
     # Add available images instruction if images were pre-generated
     if available_images:
         images_info = "\n".join([
@@ -271,6 +281,10 @@ You have the following pre-generated images available. Embed them in relevant se
 {images_info}
 
 Place each image on its own line after the relevant section header or paragraph. Use all available images where they add value to the content."""
+
+    if custom_instructions:
+        content += f"\n\n--- USER WRITING INSTRUCTIONS (apply these to structure and style; prioritize over default formatting but keep all source references) ---\n{custom_instructions}"
+
     try:
         report = await create_chat_completion(
             model=cfg.smart_llm_model,

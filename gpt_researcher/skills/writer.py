@@ -46,7 +46,7 @@ class ReportGenerator:
             "headers": self.researcher.headers,
         }
 
-    async def write_report(self, existing_headers: list = [], relevant_written_contents: list = [], ext_context=None, custom_prompt="", available_images: list = None) -> str:
+    async def write_report(self, existing_headers: list = [], relevant_written_contents: list = [], ext_context=None, custom_prompt="", available_images: list = None, custom_instructions="") -> str:
         """
         Write a report based on existing headers and relevant contents.
 
@@ -56,6 +56,7 @@ class ReportGenerator:
             ext_context (Optional): External context, if any.
             custom_prompt (str): Custom prompt for the report.
             available_images (list): Pre-generated images available for embedding.
+            custom_instructions (str): User writing instructions for report style/structure.
 
         Returns:
             str: The generated report.
@@ -97,6 +98,7 @@ class ReportGenerator:
         report_params["context"] = context
         report_params["custom_prompt"] = custom_prompt
         report_params["available_images"] = available_images  # Pass pre-generated images
+        report_params["custom_instructions"] = custom_instructions
 
         if self.researcher.report_type == "subtopic_report":
             report_params.update({
@@ -120,12 +122,13 @@ class ReportGenerator:
 
         return report
 
-    async def write_report_conclusion(self, report_content: str) -> str:
+    async def write_report_conclusion(self, report_content: str, custom_instructions="") -> str:
         """
         Write the conclusion for the report.
 
         Args:
             report_content (str): The content of the report.
+            custom_instructions (str): User writing instructions for report style/structure.
 
         Returns:
             str: The generated conclusion.
@@ -146,6 +149,7 @@ class ReportGenerator:
             cost_callback=self.researcher.add_costs,
             websocket=self.researcher.websocket,
             prompt_family=self.researcher.prompt_family,
+            custom_instructions=custom_instructions,
             **self.researcher.kwargs
         )
 
@@ -159,8 +163,12 @@ class ReportGenerator:
 
         return conclusion
 
-    async def write_introduction(self):
-        """Write the introduction section of the report."""
+    async def write_introduction(self, custom_instructions=""):
+        """Write the introduction section of the report.
+
+        Args:
+            custom_instructions (str): User writing instructions for report style/structure.
+        """
         if self.researcher.verbose:
             await stream_output(
                 "logs",
@@ -177,6 +185,7 @@ class ReportGenerator:
             websocket=self.researcher.websocket,
             cost_callback=self.researcher.add_costs,
             prompt_family=self.researcher.prompt_family,
+            custom_instructions=custom_instructions,
             **self.researcher.kwargs
         )
 

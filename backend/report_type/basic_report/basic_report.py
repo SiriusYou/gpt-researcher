@@ -21,6 +21,7 @@ class BasicReport:
         headers=None,
         mcp_configs=None,
         mcp_strategy=None,
+        custom_instructions="",
     ):
         self.query = query
         self.query_domains = query_domains
@@ -32,11 +33,13 @@ class BasicReport:
         self.config_path = config_path
         self.websocket = websocket
         self.headers = headers or {}
-        
+        self.custom_instructions = custom_instructions
+
         # Generate a unique research ID for this report
         self.research_id = self._generate_research_id(query)
 
         # Initialize researcher with optional MCP parameters
+        # Note: custom_instructions is NOT passed here to avoid polluting the research phase
         gpt_researcher_params = {
             "query": self.query,
             "query_domains": self.query_domains,
@@ -66,5 +69,6 @@ class BasicReport:
 
     async def run(self):
         await self.gpt_researcher.conduct_research()
-        report = await self.gpt_researcher.write_report()
+        report = await self.gpt_researcher.write_report(
+            custom_instructions=self.custom_instructions)
         return report
