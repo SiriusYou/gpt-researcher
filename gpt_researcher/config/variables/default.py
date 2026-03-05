@@ -52,4 +52,10 @@ DEFAULT_CONFIG: BaseConfig = {
     "IMAGE_GENERATION_ENABLED": False,  # Master switch for inline image generation
     "IMAGE_GENERATION_STYLE": "dark",  # Image style: "dark" (matches app theme), "light", or "auto"
     "IMAGE_GENERATION_PROVIDER": "google",  # Image provider: "google" or "modelslab"
+    # Alignment scoring settings
+    "ALIGNMENT_SCORE_THRESHOLD": 7.0,
+    "ALIGNMENT_MAX_RETRIES": 2,
+    "ALIGNMENT_ENABLED": True,
+    "ALIGNMENT_AUTO_RETRY": True,
+    "ALIGNMENT_STAGNATION_DELTA": 0.5,
 }

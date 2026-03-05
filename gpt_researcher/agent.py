@@ -28,6 +28,7 @@ from .skills.deep_research import DeepResearchSkill
 from .skills.image_generator import ImageGenerator
 from .skills.researcher import ResearchConductor
 from .skills.writer import ReportGenerator
+from .alignment import AlignmentResult, AlignmentScorer, RetryOrchestrator
 from .utils.enum import ReportSource, ReportType, Tone
 from .utils.llm import create_chat_completion
 from .vector_store import VectorStoreWrapper
@@ -486,6 +487,57 @@ class GPTResearcher:
             "images_embedded": len(self.available_images) if has_available_images else 0,
         })
         return report
+
+    async def conduct_research_with_alignment(self) -> AlignmentResult:
+        """Execute research with alignment scoring and optional auto-retry.
+
+        Runs the full research + report + scoring loop. If alignment is
+        disabled via config, conducts normal research and returns an
+        unscored AlignmentResult.
+
+        Returns:
+            AlignmentResult with final report, scores, and retry metadata.
+        """
+        alignment_enabled = getattr(self.cfg, "alignment_enabled", True)
+
+        if not alignment_enabled:
+            await self.conduct_research()
+            report = await self.write_report()
+            from .alignment.models import AlignmentScore
+            return AlignmentResult(
+                final_report=report,
+                final_score=None,
+                retry_count=0,
+                score_history=[],
+                total_cost=self.get_costs(),
+                passed=None,
+                termination_reason="llm_unavailable",
+            )
+
+        scorer = AlignmentScorer(self.cfg, cost_callback=self.add_costs)
+        orchestrator = RetryOrchestrator(
+            scorer=scorer,
+            threshold=getattr(self.cfg, "alignment_score_threshold", 7.0),
+            max_retries=getattr(self.cfg, "alignment_max_retries", 2),
+            stagnation_delta=getattr(self.cfg, "alignment_stagnation_delta", 0.5),
+            auto_retry=getattr(self.cfg, "alignment_auto_retry", True),
+        )
+
+        async def _ws_callback(msg: dict):
+            if self.websocket:
+                try:
+                    import json as _json
+                    if hasattr(self.websocket, "send_json"):
+                        await self.websocket.send_json(msg)
+                    else:
+                        await self.websocket.send_data(_json.dumps(msg))
+                except Exception:
+                    pass  # WebSocket disconnected, continue scoring (spec F6)
+
+        return await orchestrator.run(
+            researcher=self,
+            websocket_callback=_ws_callback if self.websocket else None,
+        )
 
     async def write_report_conclusion(self, report_body: str, custom_instructions="") -> str:
         """Write the conclusion section of the report.

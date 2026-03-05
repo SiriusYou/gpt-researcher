@@ -131,6 +131,45 @@ cli.add_argument(
     help="Skip DOCX generation (generate markdown and PDF only)."
 )
 
+# =====================================
+# Arg: Alignment Scoring
+# =====================================
+
+cli.add_argument(
+    "--alignment",
+    action="store_true",
+    default=True,
+    help="Enable alignment scoring (default: enabled)."
+)
+
+cli.add_argument(
+    "--no-alignment",
+    action="store_true",
+    default=False,
+    help="Disable alignment scoring."
+)
+
+cli.add_argument(
+    "--alignment-threshold",
+    type=float,
+    default=None,
+    help="Alignment score threshold (default: 7.0)."
+)
+
+cli.add_argument(
+    "--max-retries",
+    type=int,
+    default=None,
+    help="Maximum alignment retry count (default: 2)."
+)
+
+cli.add_argument(
+    "--no-auto-retry",
+    action="store_true",
+    default=False,
+    help="Score only, do not retry (advisory mode)."
+)
+
 # =============================================================================
 # Main
 # =============================================================================
@@ -180,9 +219,42 @@ async def main(args):
             encoding=args.encoding
         )
 
-        await researcher.conduct_research()
+        # Alignment scoring configuration
+        use_alignment = args.alignment and not args.no_alignment
 
-        report = await researcher.write_report()
+        if use_alignment:
+            # Override config if CLI args provided
+            if args.alignment_threshold is not None:
+                researcher.cfg.alignment_score_threshold = args.alignment_threshold
+            if args.max_retries is not None:
+                researcher.cfg.alignment_max_retries = args.max_retries
+            if args.no_auto_retry:
+                researcher.cfg.alignment_auto_retry = False
+
+            result = await researcher.conduct_research_with_alignment()
+            report = result.final_report
+
+            # Print alignment summary
+            if result.final_score is not None:
+                status = "passed" if result.passed else "below threshold"
+                if result.retry_count > 0:
+                    status += f" after {result.retry_count} retry"
+                    if result.retry_count > 1:
+                        status += "s"
+                print(f"\nAlignment Score: {result.final_score:.1f}/10 ({status})")
+                if len(result.score_history) > 1:
+                    history = " -> ".join(
+                        f"{s.score:.1f}" for s in result.score_history
+                        if s.score is not None
+                    )
+                    print(f"   Score History: {history}")
+                print(f"   Total Cost: ${result.total_cost:.2f}")
+            else:
+                print("\nAlignment scoring unavailable (LLM connection failed)")
+                print("   Report returned without scoring.")
+        else:
+            await researcher.conduct_research()
+            report = await researcher.write_report()
 
     # Write the report to markdown file
     task_id = str(uuid4())

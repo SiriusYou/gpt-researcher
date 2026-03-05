@@ -49,3 +49,9 @@ class BaseConfig(TypedDict):
     IMAGE_GENERATION_ENABLED: bool
     IMAGE_GENERATION_STYLE: str  # Image style: "dark", "light", or "auto"
     IMAGE_GENERATION_PROVIDER: str  # Image provider: "google" or "modelslab"
+    # Alignment scoring settings
+    ALIGNMENT_SCORE_THRESHOLD: float
+    ALIGNMENT_MAX_RETRIES: int
+    ALIGNMENT_ENABLED: bool
+    ALIGNMENT_AUTO_RETRY: bool
+    ALIGNMENT_STAGNATION_DELTA: float
